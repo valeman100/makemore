@@ -178,9 +178,7 @@ class CausalBoW(nn.Module):
         att = torch.zeros((B, T, T), device=x.device)
         att = att.masked_fill(self.bias[:,:T,:T] == 0, float('-inf'))
         att = F.softmax(att, dim=-1)
-        y = att @ x # (B, T, T) x (B, T, C) -> (B, T, C)
-
-        return y
+        return att @ x
 
 class BoWBlock(nn.Module):
     """ collects BoW features and adds an MLP """
@@ -271,8 +269,7 @@ class RNNCell(nn.Module):
 
     def forward(self, xt, hprev):
         xh = torch.cat([xt, hprev], dim=1)
-        ht = F.tanh(self.xh_to_h(xh))
-        return ht
+        return F.tanh(self.xh_to_h(xh))
 
 class GRUCell(nn.Module):
     """
@@ -296,9 +293,7 @@ class GRUCell(nn.Module):
         hbar = F.tanh(self.xh_to_hbar(xhr))
         # calculate the switch gate that determines if each channel should be updated at all
         z = F.sigmoid(self.xh_to_z(xh))
-        # blend the previous hidden state and the new candidate hidden state
-        ht = (1 - z) * hprev + z * hbar
-        return ht
+        return (1 - z) * hprev + z * hbar
 
 class RNN(nn.Module):
 
@@ -376,7 +371,7 @@ class MLP(nn.Module):
 
         # gather the word embeddings of the previous 3 words
         embs = []
-        for k in range(self.block_size):
+        for _ in range(self.block_size):
             tok_emb = self.wte(idx) # token embeddings of shape (b, t, n_embd)
             idx = torch.roll(idx, 1, 1)
             idx[:, 0] = self.vocab_size # special <BLANK> token
@@ -525,12 +520,10 @@ class CharDataset(Dataset):
         return self.max_word_length + 1 # <START> token followed by words
 
     def encode(self, word):
-        ix = torch.tensor([self.stoi[w] for w in word], dtype=torch.long)
-        return ix
+        return torch.tensor([self.stoi[w] for w in word], dtype=torch.long)
 
     def decode(self, ix):
-        word = ''.join(self.itos[i] for i in ix)
-        return word
+        return ''.join(self.itos[i] for i in ix)
 
     def __getitem__(self, idx):
         word = self.words[idx]
